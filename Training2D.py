@@ -55,6 +55,21 @@ class Trainer2D:
         np.save("Data/traininginput"+str(number), v)
         np.save("Data/trainingoutput"+str(number), d)
         return v,d
+    
+    def GenerateData_gan(self, number):
+        low=0
+        high=0.5
+        for i, river in enumerate(self.river):
+            print(i)
+            if (i==0):
+                v, d=Data_Generation.data_generation_gan(self.num_x, self.num_y, self.num_t,self.num_sample,self.ny_s, self.nx_s,self.freq, river, low, high, self.Cov)
+            else:
+                vv,dd=Data_Generation.data_generation_gan(self.num_x, self.num_y, self.num_t,self.num_sample,self.ny_s, self.nx_s,self.freq, river, low, high, self.Cov)
+                v=np.vstack([v, vv])
+                d=np.vstack([d,dd])
+        np.save("Data/traininginput"+str(number), v)
+        np.save("Data/trainingoutput"+str(number), d)
+        return v,d
 
         
     def LoadData(self, number, noiselevel):
@@ -86,6 +101,27 @@ class Trainer2D:
         self.model[name].compile(optimizer=Optimizer, loss=los, metrics=['mae'])
         self.model[name].fit(self.v[:self.T,:], self.d[:self.T,:], epochs=ep, batch_size=16, validation_data=(self.v[self.T:,:], self.d[self.T:,:]))
         return
+    
+    
+    def CreateResnet(self, Hidden_layer, fname, Regularizer, name1, name2):
+
+        self.T=int(self.v.shape[0]*9/10)
+        self.T=((int)(self.T/32))*32
+        Model=keras.Sequential()
+        self.prediction=self.model[name1].predict(self.v)
+        self.error =(self.prediction - self.d)**2
+        
+        for i in range(len(Hidden_layer)):
+            Model.add(keras.layers.Dense(Hidden_layer[i], kernel_initializer='random_uniform',kernel_regularizer=Regularizer, activation=fname))
+        Model.add(keras.layers.Dense(self.d.shape[1], activation='linear'))
+        self.model[name2]=Model
+        return
+
+    def TrainResnet(self, Optimizer, ep, name, los='mse'):
+        self.model[name].compile(optimizer=Optimizer, loss=los, metrics=['mae'])
+        self.model[name].fit(self.v[:self.T,:], self.error[:self.T,:], epochs=ep, batch_size=16, validation_data=(self.v[self.T:,:], self.error[self.T:,:]))
+        return
+    
 
     #%%
 
@@ -147,13 +183,14 @@ class Trainer2D:
 #ok = Data_Generation.kriging(x_coord, y_coord, np.reshape(vt, vt.shape[0]*vt.shape[1]), param, n_s)
 
     def PlotandCompare(self, d, dd, n, norm, filename, Save=False, Error=True, ind=0, v1=0, v2=7):
+        print("tt")
         if (norm=='mse'):
             f=lambda x,y: np.mean((x-y)**2)**(0.5)
         else:
             f=lambda x,y: np.mean(np.abs(x-y))
-        err=np.zeros(4)
-        fig, axeslist = plt.subplots(ncols=2, nrows=2, figsize=(9,9))
-        for i in range(4):
+        err=np.zeros(5)
+        fig, axeslist = plt.subplots(ncols=2, nrows=3, figsize=(16,16))
+        for i in range(5):
             err[i]=f(d[i],dd)
             s=n[i]
             if (Error):
